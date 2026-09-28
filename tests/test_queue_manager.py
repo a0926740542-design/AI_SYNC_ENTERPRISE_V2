@@ -1,11 +1,5 @@
 import time
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent / "app"))
-
-from queue_manager import QueueManager
-
+from app.queue_manager import QueueManager
 
 def callback(filepath):
 

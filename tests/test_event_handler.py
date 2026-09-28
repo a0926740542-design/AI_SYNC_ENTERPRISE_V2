@@ -1,9 +1,4 @@
-from pathlib import Path
-import sys
-
-sys.path.append(str(Path(__file__).parent.parent / "app"))
-
-from event_handler import EventHandler
+from app.event_handler import EventHandler
 
 
 class FakeQueue:

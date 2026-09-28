@@ -1,0 +1,19 @@
+[project]
+name = "ai-sync-enterprise"
+version = "2.0.0"
+description = "Enterprise File Synchronization System"
+readme = "README.md"
+requires-python = ">=3.14"
+authors = [
+    { name = "陳坤玉" }
+]
+
+dependencies = [
+    "watchdog>=6.0.0",
+    "pystray>=0.19.5",
+    "Pillow>=12.3.0"
+]
+
+[tool.ai_sync]
+project = "AI_SYNC Enterprise V2"
+build = "Build003"

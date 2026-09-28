@@ -21,6 +21,7 @@ class ObserverManager:
     def __init__(self):
 
         self._observer = Observer()
+
         self._started = False
 
     @property
@@ -32,6 +33,7 @@ class ObserverManager:
         return self._started
 
     def schedule(self, handler, path, recursive=True):
+
         self._observer.schedule(
             handler,
             path,
@@ -44,6 +46,7 @@ class ObserverManager:
             return
 
         self._observer.start()
+
         self._started = True
 
     def stop(self):
@@ -52,6 +55,7 @@ class ObserverManager:
             return
 
         self._observer.stop()
+
         self._observer.join()
 
         self._started = False

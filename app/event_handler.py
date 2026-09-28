@@ -15,7 +15,7 @@ class EventHandler(FileSystemEventHandler):
         self.recent_events = {}
 
         # 同一檔案 0.5 秒內只允許一次
-        self.event_interval = 0.5
+        self.event_interval = 3.0
 
     def on_created(self, event):
 

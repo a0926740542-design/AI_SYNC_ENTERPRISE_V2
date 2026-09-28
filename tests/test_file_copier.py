@@ -1,27 +1,53 @@
-from pathlib import Path
+from watchdog.observers import Observer
 
-from app.file_copier import FileCopier
-
-
-def main():
-
-    source = Path(r"C:\WORK\FILECOPIER_TEST.txt")
-
-    source.write_text(
-        "AI_SYNC Enterprise Test",
-        encoding="utf-8"
-    )
-
-    copier = FileCopier(r"C:\BACKUP")
-
-    ok = copier.copy(source)
-
-    print("Copy Result :", ok)
-
-    backup = Path(r"C:\BACKUP\FILECOPIER_TEST.txt")
-
-    print("Backup Exists :", backup.exists())
+from event_handler import EventHandler
+from queue_manager import QueueManager
+from file_copier import FileCopier
 
 
-if __name__ == "__main__":
-    main()
+class SyncEngine:
+
+    def __init__(self, source_folder, backup_folder, logger):
+
+        self.source_folder = source_folder
+        self.logger = logger
+
+        self.copier = FileCopier(backup_folder)
+
+        self.queue = QueueManager(self._process_file)
+
+        self.handler = EventHandler(self.queue)
+
+        self.observer = Observer()
+
+    def start(self):
+
+        self.queue.start()
+
+        self.observer.schedule(
+            self.handler,
+            self.source_folder,
+            recursive=True
+        )
+
+        self.observer.start()
+
+        self.logger.system("Sync Engine Started")
+
+    def stop(self):
+
+        self.observer.stop()
+        self.observer.join()
+
+        self.queue.stop()
+
+        self.logger.system("Sync Engine Stopped")
+
+    def _process_file(self, filepath):
+
+        ok = self.copier.copy(filepath)
+
+        if ok:
+            self.logger.info(f"SYNC : {filepath}")
+        else:
+            self.logger.error(f"FAILED : {filepath}")

@@ -1,36 +1,49 @@
+import time
+from pathlib import Path
+
 from watchdog.events import FileSystemEventHandler
 
 
 class EventHandler(FileSystemEventHandler):
-    """
-    Enterprise Event Handler
 
-    職責：
-    - 接收 Watchdog 事件
-    - 過濾資料夾事件
-    - 將檔案加入 Queue
-    """
+    def __init__(self, queue):
 
-    def __init__(self, queue_manager):
-        self.queue = queue_manager
+        super().__init__()
+
+        self.queue = queue
+
+        self.recent_events = {}
+
+        # 同一檔案 0.5 秒內只允許一次
+        self.event_interval = 0.5
 
     def on_created(self, event):
 
         if event.is_directory:
             return
 
-        self.queue.put(event.src_path)
+        self._enqueue(event.src_path)
 
     def on_modified(self, event):
 
         if event.is_directory:
             return
 
-        self.queue.put(event.src_path)
+        self._enqueue(event.src_path)
 
-    def on_moved(self, event):
+    def _enqueue(self, filepath):
 
-        if event.is_directory:
-            return
+        filepath = str(Path(filepath).resolve())
 
-        self.queue.put(event.dest_path)
+        now = time.time()
+
+        last = self.recent_events.get(filepath)
+
+        if last is not None:
+
+            if now - last < self.event_interval:
+                return
+
+        self.recent_events[filepath] = now
+
+        self.queue.put(filepath)

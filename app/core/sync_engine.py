@@ -5,12 +5,41 @@ class SyncEngine:
         self.source_folder = source_folder
         self.backup_folder = backup_folder
 
-        # -------------------------------------------------
-        # Core Components
-        # -------------------------------------------------
+        self._build_components()
+
+    # -------------------------------------------------
+    # Public API
+    # -------------------------------------------------
+
+    def start(self):
+
+        if self.running:
+            return
+
+        self.worker_pool.start()
+        self.observer_manager.start()
+
+    def stop(self):
+
+        if not self.running:
+            return
+
+        self.observer_manager.stop()
+        self.worker_pool.stop()
+
+    @property
+    def running(self):
+
+        return self.observer_manager.running
+
+    # -------------------------------------------------
+    # Private
+    # -------------------------------------------------
+
+    def _build_components(self):
 
         self.file_copier = FileCopier(
-            backup_folder
+            self.backup_folder
         )
 
         self.worker_pool = WorkerPool(
@@ -32,24 +61,3 @@ class SyncEngine:
             self.source_folder,
             recursive=True
         )
-
-    # -------------------------------------------------
-    # Public API
-    # -------------------------------------------------
-
-    def start(self):
-
-        self.worker_pool.start()
-
-        self.observer_manager.start()
-
-    def stop(self):
-
-        self.observer_manager.stop()
-
-        self.worker_pool.stop()
-
-    @property
-    def running(self):
-
-        return self.observer_manager.running

@@ -39,5 +39,5 @@ class EventRouter:
         if not self.deduplicator.should_process(filepath):
             return
 
-        # 放入 Worker Queue
-        self.queue.put(filepath)
+      # 放入 Worker Queue
+self.queue.submit(filepath)

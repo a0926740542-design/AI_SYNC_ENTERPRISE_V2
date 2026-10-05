@@ -22,12 +22,14 @@ class WorkerPool:
     def __init__(self, callback):
 
         self.callback = callback
-
         self.tasks = queue.Queue()
 
         self.running = False
-
         self.worker = None
+
+    # -------------------------
+    # Public API
+    # -------------------------
 
     def start(self):
 
@@ -54,21 +56,47 @@ class WorkerPool:
 
         self.tasks.put(filepath)
 
+    def pending_jobs(self):
+
+        return self.tasks.qsize()
+
+    # -------------------------
+    # Private
+    # -------------------------
+
     def _run(self):
 
         while self.running:
 
+            filepath = None
+
+            # 等待工作
             try:
 
                 filepath = self.tasks.get(timeout=0.5)
 
             except queue.Empty:
+
                 continue
 
+            # 執行工作
             try:
 
                 self.callback(filepath)
 
+            except Exception as ex:
+
+                self._handle_error(filepath, ex)
+
             finally:
 
-                self.tasks.task_done()
+                if filepath is not None:
+                    self.tasks.task_done()
+
+    def _handle_error(self, filepath, exception):
+
+        print("=" * 60)
+        print("[Worker Error]")
+        print(f"File : {filepath}")
+        print(f"Error: {exception}")
+        print("=" * 60)

@@ -1,49 +1,57 @@
-import time
-from pathlib import Path
+"""
+observer_manager.py
+AI_SYNC Enterprise V3
 
-from watchdog.events import FileSystemEventHandler
+負責：
+- 建立 Watchdog Observer
+- 啟動監控
+- 停止監控
+
+不負責：
+- Queue
+- Copy
+- Logger
+"""
+
+from watchdog.observers import Observer
 
 
-class EventHandler(FileSystemEventHandler):
+class ObserverManager:
 
-    def __init__(self, queue):
+    def __init__(self):
 
-        super().__init__()
+        self._observer = Observer()
+        self._started = False
 
-        self.queue = queue
+    @property
+    def observer(self):
+        return self._observer
 
-        self.recent_events = {}
+    @property
+    def running(self):
+        return self._started
 
-        # 同一檔案 0.5 秒內只允許一次
-        self.event_interval = 3.0
+    def schedule(self, handler, path, recursive=True):
+        self._observer.schedule(
+            handler,
+            path,
+            recursive=recursive
+        )
 
-    def on_created(self, event):
+    def start(self):
 
-        if event.is_directory:
+        if self._started:
             return
 
-        self._enqueue(event.src_path)
+        self._observer.start()
+        self._started = True
 
-    def on_modified(self, event):
+    def stop(self):
 
-        if event.is_directory:
+        if not self._started:
             return
 
-        self._enqueue(event.src_path)
+        self._observer.stop()
+        self._observer.join()
 
-    def _enqueue(self, filepath):
-
-        filepath = str(Path(filepath).resolve())
-
-        now = time.time()
-
-        last = self.recent_events.get(filepath)
-
-        if last is not None:
-
-            if now - last < self.event_interval:
-                return
-
-        self.recent_events[filepath] = now
-
-        self.queue.put(filepath)
+        self._started = False

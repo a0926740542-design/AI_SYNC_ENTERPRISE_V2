@@ -15,11 +15,10 @@ def main():
 
     logger.system("AI_SYNC Enterprise Started")
 
-    engine = SyncEngine(
-        config["source_folder"],
-        config["backup_folder"],
-        logger
-    )
+   engine = SyncEngine(
+    config["source_folder"],
+    config["backup_folder"]
+)
 
     engine.start()
 

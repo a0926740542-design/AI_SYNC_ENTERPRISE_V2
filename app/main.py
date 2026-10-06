@@ -2,7 +2,7 @@ import time
 
 from config_loader import ConfigLoader
 from logger import Logger
-from sync_engine import SyncEngine
+from core.sync_engine import SyncEngine
 
 CONFIG = r"C:\AI_SYNC_ENTERPRISE_V2\config\config.json"
 

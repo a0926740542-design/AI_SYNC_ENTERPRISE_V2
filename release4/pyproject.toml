@@ -1,0 +1,10 @@
+[project]
+name = "ai-sync-enterprise"
+version = "3.005.4"
+description = "AI_SYNC Enterprise Release 4 test candidate"
+requires-python = ">=3.12"
+dependencies = ["watchdog>=4,<7"]
+[project.optional-dependencies]
+test = ["pytest>=8"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]

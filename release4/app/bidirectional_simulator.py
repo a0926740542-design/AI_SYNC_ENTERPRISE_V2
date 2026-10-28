@@ -82,12 +82,22 @@ class TwoFolderSimulator:
                 self.state.record_conflict(relative, baseline, laptop_hash, home_hash)
                 conflicts.append(relative)
                 continue
-            if outcome.action == Decision.SEND_LAPTOP_TO_HOME:
-                self._copy_verified(laptop_path, home_path, laptop_hash)
-                copied.append(("laptop_to_home", relative))
-            elif outcome.action == Decision.SEND_HOME_TO_LAPTOP:
-                self._copy_verified(home_path, laptop_path, home_hash)
-                copied.append(("home_to_laptop", relative))
+            if outcome.action in (Decision.SEND_LAPTOP_TO_HOME, Decision.SEND_HOME_TO_LAPTOP):
+                if outcome.action == Decision.SEND_LAPTOP_TO_HOME:
+                    direction = "laptop_to_home"
+                    source, target = laptop_path, home_path
+                    source_hash, target_hash = laptop_hash, home_hash
+                else:
+                    direction = "home_to_laptop"
+                    source, target = home_path, laptop_path
+                    source_hash, target_hash = home_hash, laptop_hash
+                self.state.stage_transfer(relative, direction, source_hash)
+                self._copy_verified(source, target, source_hash, target_hash)
+                if digest(source) != source_hash or digest(target) != source_hash:
+                    raise RuntimeError(f"Post-copy mismatch: {relative}")
+                self.state.finish_transfer(relative, source_hash)
+                copied.append((direction, relative))
+                continue
             final_laptop, final_home = digest(laptop_path), digest(home_path)
             if final_laptop != final_home:
                 raise RuntimeError(f"Post-copy mismatch: {relative}")

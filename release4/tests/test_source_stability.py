@@ -2,12 +2,10 @@ import threading
 import time
 from pathlib import Path
 
-import pytest
-
-from app.file_copier import FileCopier, SourceChangedError
+from app.file_copier import FileCopier
 
 
-def test_source_changed_during_settle_keeps_backup_and_version(tmp_path):
+def test_source_changed_during_settle_retries_to_final_version(tmp_path):
     source = tmp_path / "source"
     backup = tmp_path / "backup"
     version = tmp_path / "version"
@@ -25,11 +23,14 @@ def test_source_changed_during_settle_keeps_backup_and_version(tmp_path):
     thread = threading.Thread(target=writer)
     thread.start()
     guarded = FileCopier(backup, source, version_folder=version, settle_seconds=0.2)
-    with pytest.raises(SourceChangedError):
-        guarded.copy(target)
-    thread.join()
-    assert (backup / "drawing.dwg").read_bytes() == b"ORIGINAL"
-    assert list(version.rglob("*drawing.dwg")) == []
+    try:
+        assert guarded.copy(target)
+    finally:
+        thread.join()
+    assert (backup / "drawing.dwg").read_bytes() == b"IN_PROGRESS_AND_CHANGED"
+    versions = list(version.rglob("*drawing.dwg"))
+    assert len(versions) == 1
+    assert versions[0].read_bytes() == b"ORIGINAL"
 
 
 def test_stable_source_copies_and_versions(tmp_path):

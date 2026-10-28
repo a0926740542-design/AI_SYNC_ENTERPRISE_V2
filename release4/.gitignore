@@ -2,3 +2,8 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.pyo
+# Local machine configuration; use config.example.json as a template
+config/config.json
+
+# Local backup and temporary editor files
+*.bak

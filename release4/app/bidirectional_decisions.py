@@ -26,10 +26,10 @@ def decide(baseline: str | None, laptop: str | None, home: str | None) -> SyncDe
     No automatic deletion: absence on one side is a conflict when a baseline
     existed. Both changed to identical content is safe to acknowledge.
     """
-    if laptop == home:
-        return SyncDecision(Decision.NO_CHANGE, "both sides already identical")
     if baseline is not None and (laptop is None or home is None):
         return SyncDecision(Decision.CONFLICT, "deletion requires manual review")
+    if laptop == home:
+        return SyncDecision(Decision.NO_CHANGE, "both sides already identical")
     laptop_changed = laptop != baseline
     home_changed = home != baseline
     if laptop_changed and home_changed:

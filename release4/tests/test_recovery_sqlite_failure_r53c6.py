@@ -69,7 +69,8 @@ def test_sqlite_commit_failure_rolls_back_baseline_and_intent(
     sim, a, b, backup = pending(tmp_path, monkeypatch)
     fingerprint = prepare_review(sim, "A101.dwg")["fingerprint"]
     baseline_before = sim.state.baseline("A101.dwg")
-    original = sim.state._connect
+    original = sim.state.finish_transfer
+    real_connect = sim.state._connect
 
     class FailingCommitConnection:
         def __init__(self, real):
@@ -78,20 +79,25 @@ def test_sqlite_commit_failure_rolls_back_baseline_and_intent(
             self.real.__enter__()
             return self
         def __exit__(self, exc_type, exc, tb):
-            # Inject a real rollback after SQL statements but before commit.
+            # Roll back the real transaction after SQL statements are issued.
             self.real.rollback()
             self.real.close()
             raise sqlite3.OperationalError("simulated commit failure")
         def execute(self, *args, **kwargs):
             return self.real.execute(*args, **kwargs)
 
-    monkeypatch.setattr(sim.state, "_connect",
-                        lambda: FailingCommitConnection(original()))
+    def fail_only_during_finish(*args):
+        with monkeypatch.context() as patch:
+            patch.setattr(sim.state, "_connect",
+                          lambda: FailingCommitConnection(real_connect()))
+            return original(*args)
+
+    monkeypatch.setattr(sim.state, "finish_transfer", fail_only_during_finish)
     with pytest.raises(sqlite3.OperationalError, match="simulated commit failure"):
         close_verified_replacement(
             sim, "A101.dwg", fingerprint, "engineer", "transaction rollback"
         )
-    monkeypatch.setattr(sim.state, "_connect", original)
+    monkeypatch.setattr(sim.state, "finish_transfer", original)
     assert_unchanged(sim, a, b, backup)
     assert sim.state.baseline("A101.dwg") == baseline_before
     assert inspect_closure_requests(sim)[-1]["status"] == (

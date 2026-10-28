@@ -3,6 +3,8 @@
 These tests only touch pytest temporary simulation roots. The final
 check-to-SQLite-commit interval is NOT atomic and remains unsafe for production.
 """
+import os
+
 import pytest
 
 import app.recovery_closure_r53c6 as closure
@@ -49,12 +51,21 @@ def test_external_write_during_audit_flush_blocks_closure(tmp_path, monkeypatch,
             called[0] = True
             victim.write_bytes(b"external edit after audit")
     monkeypatch.setattr(closure.os, "fsync", injected_fsync)
-    with pytest.raises(RuntimeError, match="changed after audit write"):
-        finish(sim, fingerprint)
+    if os.name == "nt":
+        # Batch 9 holds Windows read-sharing handles across audit+commit.
+        # The injected external write must fail at the OS boundary, rather
+        # than succeed and be caught by the batch 8 post-audit digest.
+        with pytest.raises(PermissionError):
+            finish(sim, fingerprint)
+        assert victim.read_bytes() == (b"old" if target == "backup" else b"new")
+    else:
+        # Non-Windows fallback has no Windows share-mode protection.
+        with pytest.raises(RuntimeError, match="changed after audit write"):
+            finish(sim, fingerprint)
+        assert victim.read_bytes() == b"external edit after audit"
     assert called[0]
     assert sim.state.pending_transfers()
     assert sim.state.replacement_intents()
-    assert victim.read_bytes() == b"external edit after audit"
 
 
 def test_successful_closure_still_works_after_second_verification(tmp_path, monkeypatch):

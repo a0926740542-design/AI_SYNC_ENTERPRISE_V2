@@ -91,3 +91,9 @@ class SyncState:
                 ON CONFLICT(relative_path) DO UPDATE SET sha256=excluded.sha256""",
                 (path, expected_sha256))
             db.execute("DELETE FROM pending_transfers WHERE relative_path=?", (path,))
+
+    def discard_pending(self, relative_path, expected_sha256):
+        """Discard an obsolete intent only after both endpoints are verified equal."""
+        with self._connect() as db:
+            db.execute("DELETE FROM pending_transfers WHERE relative_path=? AND expected_sha256=?",
+                       (self._path(relative_path), expected_sha256))

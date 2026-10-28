@@ -52,7 +52,7 @@ class TwoFolderSimulator:
         return result
 
     @staticmethod
-    def _copy_verified(source, target, expected_hash, expected_target_hash=None, state=None, relative=None):
+    def _copy_verified(self, source, target, expected_hash, expected_target_hash=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, name = tempfile.mkstemp(prefix=".r53b-", dir=target.parent)
         try:
@@ -72,8 +72,10 @@ class TwoFolderSimulator:
             if expected_target_hash is None:
                 install_if_absent(name, target)
             else:
-                if state is not None:
-                    state.mark_replacement_intent(relative, expected_hash)
+                relative = (target.relative_to(self.home).as_posix()
+                            if target.is_relative_to(self.home)
+                            else target.relative_to(self.laptop).as_posix())
+                self.state.mark_replacement_intent(relative, expected_hash)
                 displaced = replace_with_backup(name, target)
                 if digest(displaced) != expected_target_hash:
                     raise RuntimeError(
@@ -127,8 +129,7 @@ class TwoFolderSimulator:
                     source_hash, target_hash = home_hash, laptop_hash
                 stable_file(source)
                 self.state.stage_transfer(relative, direction, source_hash)
-                self._copy_verified(source, target, source_hash, target_hash,
-                                    self.state, relative)
+                self._copy_verified(source, target, source_hash, target_hash)
                 if digest(source) != source_hash or digest(target) != source_hash:
                     raise RuntimeError(f"Post-copy mismatch: {relative}")
                 self.state.finish_transfer(relative, source_hash)

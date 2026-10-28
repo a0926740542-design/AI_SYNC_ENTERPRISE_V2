@@ -52,7 +52,7 @@ class TwoFolderSimulator:
         return result
 
     @staticmethod
-    def _copy_verified(source, target, expected_hash, expected_target_hash=None):
+    def _copy_verified(source, target, expected_hash, expected_target_hash=None, *, state=None, relative=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, name = tempfile.mkstemp(prefix=".r53b-", dir=target.parent)
         try:
@@ -72,6 +72,8 @@ class TwoFolderSimulator:
             if expected_target_hash is None:
                 install_if_absent(name, target)
             else:
+                if state is not None:
+                    state.mark_replacement_intent(relative, expected_hash)
                 displaced = replace_with_backup(name, target)
                 if digest(displaced) != expected_target_hash:
                     raise RuntimeError(
@@ -92,8 +94,11 @@ class TwoFolderSimulator:
         names = sorted(self._files(self.laptop) | self._files(self.home))
         copied, conflicts = [], []
         pending = {row[0]: (row[1], row[2]) for row in self.state.pending_transfers()}
+        replacement_intents = self.state.replacement_intents()
         for relative in names:
             laptop_path, home_path = self.laptop / relative, self.home / relative
+            if relative in pending and relative in replacement_intents:
+                raise RuntimeError("Pending replacement requires manual recovery: " + relative)
             if relative in pending:
                 # Fail closed when a prior replacement left a displaced backup.
                 # This may also block a harmless crash after a successful swap;
@@ -122,7 +127,8 @@ class TwoFolderSimulator:
                     source_hash, target_hash = home_hash, laptop_hash
                 stable_file(source)
                 self.state.stage_transfer(relative, direction, source_hash)
-                self._copy_verified(source, target, source_hash, target_hash)
+                self._copy_verified(source, target, source_hash, target_hash,
+                                    state=self.state, relative=relative)
                 if digest(source) != source_hash or digest(target) != source_hash:
                     raise RuntimeError(f"Post-copy mismatch: {relative}")
                 self.state.finish_transfer(relative, source_hash)

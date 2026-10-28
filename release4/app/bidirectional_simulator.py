@@ -112,4 +112,6 @@ class TwoFolderSimulator:
                     self.state.finish_transfer(relative, final_laptop)
                 else:
                     self.state.acknowledge(relative, final_laptop)
+                    if relative in pending:
+                        self.state.discard_pending(relative, pending[relative][1])
         return {"status": "online", "copied": copied, "conflicts": conflicts}

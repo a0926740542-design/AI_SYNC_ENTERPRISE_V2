@@ -52,7 +52,7 @@ class TwoFolderSimulator:
         return result
 
     @staticmethod
-    def _copy_verified(source, target, expected_hash, expected_target_hash=None, *, state=None, relative=None):
+    def _copy_verified(source, target, expected_hash, expected_target_hash=None, state=None, relative=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, name = tempfile.mkstemp(prefix=".r53b-", dir=target.parent)
         try:
@@ -128,7 +128,7 @@ class TwoFolderSimulator:
                 stable_file(source)
                 self.state.stage_transfer(relative, direction, source_hash)
                 self._copy_verified(source, target, source_hash, target_hash,
-                                    state=self.state, relative=relative)
+                                    self.state, relative)
                 if digest(source) != source_hash or digest(target) != source_hash:
                     raise RuntimeError(f"Post-copy mismatch: {relative}")
                 self.state.finish_transfer(relative, source_hash)

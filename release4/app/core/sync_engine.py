@@ -36,7 +36,10 @@ class SyncEngine:
             # Observer first, then reconcile files created while offline.
             self.reconcile_startup()
         except Exception:
-            self.worker_pool.stop()
+            try:
+                self.observer_manager.stop()
+            finally:
+                self.worker_pool.stop()
             raise
 
     def reconcile_startup(self):
@@ -50,8 +53,10 @@ class SyncEngine:
         return queued
 
     def stop(self):
-        self.observer_manager.stop()
-        self.worker_pool.stop()
+        try:
+            self.observer_manager.stop()
+        finally:
+            self.worker_pool.stop()
 
     @property
     def running(self):

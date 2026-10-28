@@ -72,7 +72,12 @@ class TwoFolderSimulator:
             if expected_target_hash is None:
                 install_if_absent(name, target)
             else:
-                replace_with_backup(name, target)
+                displaced = replace_with_backup(name, target)
+                if digest(displaced) != expected_target_hash:
+                    raise RuntimeError(
+                        'Late destination change detected; displaced DWG preserved at '
+                        + str(displaced)
+                    )
         finally:
             if os.path.exists(name):
                 os.unlink(name)

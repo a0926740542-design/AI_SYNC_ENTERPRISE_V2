@@ -62,8 +62,7 @@ class TwoFolderSimulator:
             if digest(source) != expected_hash or digest(Path(name)) != expected_hash:
                 raise RuntimeError("Source changed during transfer")
             with destination_preflight(target):
-                if digest(target) != expected_target_hash:
-                    raise RuntimeError("Destination changed during transfer")
+                pass
             # Windows replace requires releasing the no-sharing handle first.
             # A narrow external-writer race remains; never use on production DWGs.
             if digest(target) != expected_target_hash:

@@ -11,6 +11,7 @@ import tempfile
 
 from app.bidirectional_decisions import Decision, decide
 from app.bidirectional_state import SyncState
+from app.conflict_vault import ConflictVault
 
 
 def digest(path):
@@ -33,6 +34,7 @@ class TwoFolderSimulator:
         if self.database == self.laptop or self.database == self.home or self.laptop in self.database.parents or self.home in self.database.parents:
             raise ValueError("State database must be outside simulation roots")
         self.state = SyncState(self.database)
+        self.vault = ConflictVault(self.database.parent / (self.database.stem + '_conflicts'))
 
     def _files(self, root):
         if not root.is_dir():
@@ -73,6 +75,7 @@ class TwoFolderSimulator:
             baseline = self.state.baseline(relative)
             outcome = decide(baseline, laptop_hash, home_hash)
             if outcome.action == Decision.CONFLICT:
+                self.vault.preserve(relative, laptop_path, home_path, baseline, laptop_hash, home_hash)
                 self.state.record_conflict(relative, baseline, laptop_hash, home_hash)
                 conflicts.append(relative)
                 continue

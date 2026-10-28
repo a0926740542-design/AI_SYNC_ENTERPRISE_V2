@@ -1,5 +1,6 @@
 """R5.3-C4 Windows DWG write/lock regression tests (simulation roots only)."""
 import os
+import hashlib
 import pytest
 
 from app.bidirectional_simulator import TwoFolderSimulator, digest
@@ -64,5 +65,5 @@ def test_source_changes_during_transfer_keeps_destination_and_intent(tmp_path, m
         sim.reconcile()
     assert b.read_bytes() == b"initial"
     assert sim.state.pending_transfers() == [
-        ("A101.dwg", "laptop_to_home", digest(b"") if False else __import__("hashlib").sha256(b"next-version").hexdigest())
+        ("A101.dwg", "laptop_to_home", hashlib.sha256(b"next-version").hexdigest())
     ]

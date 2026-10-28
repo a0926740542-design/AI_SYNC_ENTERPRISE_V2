@@ -14,6 +14,7 @@ from app.bidirectional_state import SyncState
 from app.conflict_vault import ConflictVault
 from app.sync_safety_r53c3 import exclusive_run_lock, stable_file
 from app.destination_safety_r53c5 import destination_preflight
+from app.transfer_guard_r53c6 import install_if_absent
 
 
 def digest(path):
@@ -45,7 +46,7 @@ class TwoFolderSimulator:
         for path in root.rglob("*"):
             if path.is_symlink():
                 raise ValueError("Symlinks are not supported in simulation")
-            if path.is_file():
+            if path.is_file() and not path.name.startswith(".r53b-"):
                 result.add(path.relative_to(root).as_posix())
         return result
 
@@ -67,7 +68,10 @@ class TwoFolderSimulator:
             # A narrow external-writer race remains; never use on production DWGs.
             if digest(target) != expected_target_hash:
                 raise RuntimeError("Destination changed during transfer")
-            os.replace(name, target)
+            if expected_target_hash is None:
+                install_if_absent(name, target)
+            else:
+                os.replace(name, target)
         finally:
             if os.path.exists(name):
                 os.unlink(name)

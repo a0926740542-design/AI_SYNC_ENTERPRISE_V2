@@ -2,7 +2,7 @@
 from pathlib import Path
 from app.file_copier import FileCopier
 from app.core.worker_pool import WorkerPool
-from app.core.event_router import EventRouter
+from app.core.event_router import EventRouter, IGNORED_EXTENSIONS
 from app.core.watchdog_handler import WatchdogHandler
 from app.core.observer_manager import ObserverManager
 
@@ -33,9 +33,21 @@ class SyncEngine:
         self.worker_pool.start()
         try:
             self.observer_manager.start()
+            # Observer first, then reconcile files created while offline.
+            self.reconcile_startup()
         except Exception:
             self.worker_pool.stop()
             raise
+
+    def reconcile_startup(self):
+        queued = 0
+        for path in self.source_folder.rglob('*'):
+            if path.is_file() and path.suffix.lower() not in IGNORED_EXTENSIONS:
+                if self.worker_pool.submit(path):
+                    queued += 1
+        if self.logger:
+            self.logger.system(f'STARTUP RECONCILE queued={queued}')
+        return queued
 
     def stop(self):
         self.observer_manager.stop()

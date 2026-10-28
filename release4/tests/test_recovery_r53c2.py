@@ -58,12 +58,13 @@ def test_destination_change_during_copy_is_rejected(tmp_path, monkeypatch):
     a.write_bytes(b"new")
     original_digest = __import__("app.bidirectional_simulator", fromlist=["digest"])
     original = original_digest.digest
-    triggered = {"value": False}
+    triggered = {"count": 0}
 
     def inject(path):
-        if str(path) == str(b) and not triggered["value"]:
-            triggered["value"] = True
-            b.write_bytes(b"concurrent-home-change")
+        if str(path) == str(b):
+            triggered["count"] += 1
+            if triggered["count"] == 2:
+                b.write_bytes(b"concurrent-home-change")
         return original(path)
 
     monkeypatch.setattr(original_digest, "digest", inject)

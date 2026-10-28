@@ -73,5 +73,11 @@ def close_verified_replacement(sim, relative_path, fingerprint, operator, reason
             stream.write((_canonical(entry) + "\n").encode("utf-8"))
             stream.flush()
             os.fsync(stream.fileno())
+        # Revalidate AFTER the durable audit write as well. A third-party
+        # writer may modify a DWG while the audit record is being flushed.
+        # This narrows but DOES NOT eliminate the final check-to-commit race.
+        if (digest(laptop) != expected or digest(home) != expected
+                or digest(Path(backup_path)) != baseline):
+            raise RuntimeError("Recovery evidence changed after audit write")
         sim.state.finish_transfer(relative_path, expected)
         return {**entry, "status": "CLOSED", "note": "Audit records request before database commit"}

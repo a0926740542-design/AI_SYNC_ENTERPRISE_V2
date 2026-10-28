@@ -11,6 +11,7 @@ from app.bidirectional_simulator import digest
 from app.recovery_inspector_r53c6 import inspect_recovery
 from app.recovery_review_r53c6 import _canonical
 from app.sync_safety_r53c3 import exclusive_run_lock
+from app.recovery_windows_guard_r53c6 import hold_read_only_no_writers
 
 
 def close_verified_replacement(sim, relative_path, fingerprint, operator, reason):
@@ -59,25 +60,28 @@ def close_verified_replacement(sim, relative_path, fingerprint, operator, reason
         if (digest(laptop) != expected or digest(home) != expected
                 or digest(Path(backup_path)) != baseline):
             raise RuntimeError("Recovery evidence changed during verification")
-        audit_path = sim.database.parent / (sim.database.stem + "_recovery_audit.jsonl")
-        entry = {
-            "relative_path": relative_path,
-            "evidence_sha256": actual,
-            "operator": operator.strip(),
-            "decision": "CLOSE_VERIFIED",
-            "reason": reason.strip(),
-            "status": "CLOSURE_REQUESTED",
-        }
-        fd = os.open(audit_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-        with os.fdopen(fd, "ab") as stream:
-            stream.write((_canonical(entry) + "\n").encode("utf-8"))
-            stream.flush()
-            os.fsync(stream.fileno())
-        # Revalidate AFTER the durable audit write as well. A third-party
-        # writer may modify a DWG while the audit record is being flushed.
-        # This narrows but DOES NOT eliminate the final check-to-commit race.
-        if (digest(laptop) != expected or digest(home) != expected
-                or digest(Path(backup_path)) != baseline):
-            raise RuntimeError("Recovery evidence changed after audit write")
-        sim.state.finish_transfer(relative_path, expected)
-        return {**entry, "status": "CLOSED", "note": "Audit records request before database commit"}
+        # Hold Windows read-sharing handles through audit and SQLite commit.
+        # No write access is shared; normal AutoCAD writer opens fail closed.
+        with hold_read_only_no_writers((laptop, home, Path(backup_path))):
+            audit_path = sim.database.parent / (sim.database.stem + "_recovery_audit.jsonl")
+            entry = {
+                "relative_path": relative_path,
+                "evidence_sha256": actual,
+                "operator": operator.strip(),
+                "decision": "CLOSE_VERIFIED",
+                "reason": reason.strip(),
+                "status": "CLOSURE_REQUESTED",
+            }
+            fd = os.open(audit_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            with os.fdopen(fd, "ab") as stream:
+                stream.write((_canonical(entry) + "\n").encode("utf-8"))
+                stream.flush()
+                os.fsync(stream.fileno())
+            # Revalidate AFTER the durable audit write as well. A third-party
+            # writer may modify a DWG while the audit record is being flushed.
+            # This narrows but DOES NOT eliminate the final check-to-commit race.
+            if (digest(laptop) != expected or digest(home) != expected
+                    or digest(Path(backup_path)) != baseline):
+                raise RuntimeError("Recovery evidence changed after audit write")
+            sim.state.finish_transfer(relative_path, expected)
+            return {**entry, "status": "CLOSED", "note": "Audit records request before database commit"}

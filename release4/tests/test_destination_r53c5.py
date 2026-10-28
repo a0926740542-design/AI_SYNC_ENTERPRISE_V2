@@ -45,7 +45,8 @@ def test_destination_preflight_allows_unlocked_file(tmp_path):
     target = tmp_path / "A101.dwg"
     target.write_bytes(b"original")
     with destination_preflight(target):
-        assert target.read_bytes() == b"original"
+        assert target.exists()
+    assert target.read_bytes() == b"original"
 
 
 def test_destination_change_after_preflight_is_rejected(tmp_path, monkeypatch):

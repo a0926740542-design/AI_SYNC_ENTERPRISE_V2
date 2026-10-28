@@ -40,6 +40,8 @@ def exclusive_run_lock(path):
                     yield
                 finally:
                     fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    except PermissionError:
+        raise
 
 
 def stable_file(path, interval=0.05):

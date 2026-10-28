@@ -1,0 +1,90 @@
+"""R5.3-B offline two-folder simulator; no network or production integration.
+
+Only transfers non-conflicting files after stable SHA-256 reads.
+A conflicting file is never overwritten. Missing files are not propagated
+as deletions. Both folders must be dedicated test roots.
+"""
+import hashlib
+import os
+from pathlib import Path
+import tempfile
+
+from app.bidirectional_decisions import Decision, decide
+from app.bidirectional_state import SyncState
+
+
+def digest(path):
+    if not path.is_file():
+        return None
+    h = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+class TwoFolderSimulator:
+    def __init__(self, laptop_root, home_root, database):
+        self.laptop = Path(laptop_root).resolve()
+        self.home = Path(home_root).resolve()
+        self.database = Path(database).resolve()
+        if self.laptop == self.home or self.laptop in self.home.parents or self.home in self.laptop.parents:
+            raise ValueError("Simulation roots must be disjoint")
+        if self.database == self.laptop or self.database == self.home or self.laptop in self.database.parents or self.home in self.database.parents:
+            raise ValueError("State database must be outside simulation roots")
+        self.state = SyncState(self.database)
+
+    def _files(self, root):
+        if not root.is_dir():
+            raise FileNotFoundError(root)
+        result = set()
+        for path in root.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("Symlinks are not supported in simulation")
+            if path.is_file():
+                result.add(path.relative_to(root).as_posix())
+        return result
+
+    @staticmethod
+    def _copy_verified(source, target, expected_hash):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix=".r53b-", dir=target.parent)
+        try:
+            with os.fdopen(fd, "wb") as output, source.open("rb") as input_file:
+                for chunk in iter(lambda: input_file.read(1024 * 1024), b""):
+                    output.write(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+            if digest(source) != expected_hash or digest(Path(name)) != expected_hash:
+                raise RuntimeError("Source changed during transfer")
+            os.replace(name, target)
+        finally:
+            if os.path.exists(name):
+                os.unlink(name)
+
+    def reconcile(self, online=True):
+        if not online:
+            return {"status": "offline", "copied": [], "conflicts": []}
+        names = sorted(self._files(self.laptop) | self._files(self.home))
+        copied, conflicts = [], []
+        for relative in names:
+            laptop_path, home_path = self.laptop / relative, self.home / relative
+            laptop_hash, home_hash = digest(laptop_path), digest(home_path)
+            baseline = self.state.baseline(relative)
+            outcome = decide(baseline, laptop_hash, home_hash)
+            if outcome.action == Decision.CONFLICT:
+                self.state.record_conflict(relative, baseline, laptop_hash, home_hash)
+                conflicts.append(relative)
+                continue
+            if outcome.action == Decision.SEND_LAPTOP_TO_HOME:
+                self._copy_verified(laptop_path, home_path, laptop_hash)
+                copied.append(("laptop_to_home", relative))
+            elif outcome.action == Decision.SEND_HOME_TO_LAPTOP:
+                self._copy_verified(home_path, laptop_path, home_hash)
+                copied.append(("home_to_laptop", relative))
+            final_laptop, final_home = digest(laptop_path), digest(home_path)
+            if final_laptop != final_home:
+                raise RuntimeError(f"Post-copy mismatch: {relative}")
+            if final_laptop is not None:
+                self.state.acknowledge(relative, final_laptop)
+        return {"status": "online", "copied": copied, "conflicts": conflicts}

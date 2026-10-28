@@ -1,0 +1,7 @@
+{
+  "project_name": "AI_SYNC Enterprise - configure locally",
+  "source_folder": "SET_LOCAL_SOURCE_FOLDER",
+  "backup_folder": "SET_LOCAL_BACKUP_FOLDER",
+  "version_folder": "SET_LOCAL_VERSION_FOLDER",
+  "log_folder": "SET_LOCAL_LOG_FOLDER"
+}

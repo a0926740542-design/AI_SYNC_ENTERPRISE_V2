@@ -10,34 +10,38 @@ def exclusive_run_lock(path):
     """Non-blocking advisory OS lock; use one shared lock path per pair of roots."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+b") as stream:
-        stream.seek(0)
-        if stream.read(1) == b"":
-            stream.seek(0)
-            stream.write(b"0")
-            stream.flush()
-        stream.seek(0)
-        if os.name == "nt":
-            import msvcrt
-            try:
-                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError as exc:
-                raise RuntimeError("Another simulator reconciliation is running") from exc
-            try:
-                yield
-            finally:
-                stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-            try:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError as exc:
-                raise RuntimeError("Another simulator reconciliation is running") from exc
-            try:
-                yield
-            finally:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    # Open without reading the byte Windows may already have locked.
+    # A newly created file needs one byte before msvcrt.locking can lock it.
+    try:
+        with path.open("a+b") as stream:
+            if os.name == "nt":
+                import msvcrt
+                try:
+                    if path.stat().st_size == 0:
+                        stream.seek(0)
+                        stream.write(b"0")
+                        stream.flush()
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                except OSError as exc:
+                    raise RuntimeError("Another simulator reconciliation is running") from exc
+                try:
+                    yield
+                finally:
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                try:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError as exc:
+                    raise RuntimeError("Another simulator reconciliation is running") from exc
+                try:
+                    yield
+                finally:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    except PermissionError as exc:
+        raise RuntimeError("Another simulator reconciliation is running") from exc
 
 
 def stable_file(path, interval=0.05):

@@ -45,9 +45,16 @@ def test_crash_after_copy_before_acknowledge_is_recovered(tmp_path):
     sim.state.stage_transfer("A101.dwg", "laptop_to_home", new_hash)
     sim._copy_verified(a, b, new_hash, digest(b))
     restarted = TwoFolderSimulator(laptop, home, tmp_path / "state" / "sync.db")
-    assert restarted.reconcile()["copied"] == []
-    assert restarted.state.pending_transfers() == []
-    assert restarted.state.baseline("A101.dwg") == new_hash
+    # C6 safety policy: an existing DWG was replaced and a displaced backup
+    # exists, so a pending transfer cannot be silently acknowledged.
+    with pytest.raises(RuntimeError, match="manual recovery"):
+        restarted.reconcile()
+    assert restarted.state.pending_transfers() == [
+        ("A101.dwg", "laptop_to_home", new_hash)
+    ]
+    assert restarted.state.baseline("A101.dwg") != new_hash
+    assert a.read_bytes() == b"new"
+    assert b.read_bytes() == b"new"
 
 
 def test_destination_change_during_copy_is_rejected(tmp_path, monkeypatch):

@@ -48,7 +48,7 @@ class TwoFolderSimulator:
         return result
 
     @staticmethod
-    def _copy_verified(source, target, expected_hash):
+    def _copy_verified(source, target, expected_hash, expected_target_hash=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, name = tempfile.mkstemp(prefix=".r53b-", dir=target.parent)
         try:
@@ -59,7 +59,7 @@ class TwoFolderSimulator:
                 os.fsync(output.fileno())
             if digest(source) != expected_hash or digest(Path(name)) != expected_hash:
                 raise RuntimeError("Source changed during transfer")
-            os.replace(name, target)
+            if digest(target) != expected_target_hash:\n                raise RuntimeError("Destination changed during transfer")\n            os.replace(name, target)
         finally:
             if os.path.exists(name):
                 os.unlink(name)

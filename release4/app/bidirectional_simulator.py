@@ -13,6 +13,7 @@ from app.bidirectional_decisions import Decision, decide
 from app.bidirectional_state import SyncState
 from app.conflict_vault import ConflictVault
 from app.sync_safety_r53c3 import exclusive_run_lock, stable_file
+from app.destination_safety_r53c5 import destination_preflight
 
 
 def digest(path):
@@ -60,6 +61,11 @@ class TwoFolderSimulator:
                 os.fsync(output.fileno())
             if digest(source) != expected_hash or digest(Path(name)) != expected_hash:
                 raise RuntimeError("Source changed during transfer")
+            with destination_preflight(target):
+                if digest(target) != expected_target_hash:
+                    raise RuntimeError("Destination changed during transfer")
+            # Windows replace requires releasing the no-sharing handle first.
+            # A narrow external-writer race remains; never use on production DWGs.
             if digest(target) != expected_target_hash:
                 raise RuntimeError("Destination changed during transfer")
             os.replace(name, target)

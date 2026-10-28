@@ -12,6 +12,7 @@ import tempfile
 from app.bidirectional_decisions import Decision, decide
 from app.bidirectional_state import SyncState
 from app.conflict_vault import ConflictVault
+from app.sync_safety_r53c3 import exclusive_run_lock, stable_file
 
 
 def digest(path):
@@ -69,6 +70,10 @@ class TwoFolderSimulator:
     def reconcile(self, online=True):
         if not online:
             return {"status": "offline", "copied": [], "conflicts": []}
+        with exclusive_run_lock(self.database.with_suffix('.runlock')):
+            return self._reconcile_locked()
+
+    def _reconcile_locked(self):
         names = sorted(self._files(self.laptop) | self._files(self.home))
         copied, conflicts = [], []
         pending = {row[0]: (row[1], row[2]) for row in self.state.pending_transfers()}
@@ -91,6 +96,7 @@ class TwoFolderSimulator:
                     direction = "home_to_laptop"
                     source, target = home_path, laptop_path
                     source_hash, target_hash = home_hash, laptop_hash
+                stable_file(source)
                 self.state.stage_transfer(relative, direction, source_hash)
                 self._copy_verified(source, target, source_hash, target_hash)
                 if digest(source) != source_hash or digest(target) != source_hash:

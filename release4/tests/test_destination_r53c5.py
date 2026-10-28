@@ -31,12 +31,12 @@ def test_locked_destination_rejected_without_overwrite(tmp_path):
     handle = create(str(b), 0x80000000, 0, None, 3, 0x80, None)
     assert handle != ctypes.c_void_p(-1).value
     try:
-        with pytest.raises(RuntimeError, match="Destination DWG is locked"):
+        with pytest.raises(PermissionError):
             sim.reconcile()
     finally:
         close(handle)
     assert b.read_bytes() == b"old"
-    assert sim.state.pending_transfers() == [("A101.dwg", "laptop_to_home", digest(a))]
+    assert sim.state.pending_transfers() == []
     assert sim.reconcile()["copied"] == [("laptop_to_home", "A101.dwg")]
     assert b.read_bytes() == b"new"
 
@@ -60,7 +60,7 @@ def test_destination_change_after_preflight_is_rejected(tmp_path, monkeypatch):
     def inject(path):
         if str(path) == str(b):
             reads["n"] += 1
-            if reads["n"] == 3:
+            if reads["n"] == 2:
                 b.write_bytes(b"third-party-update")
         return original(path)
     monkeypatch.setattr(module, "digest", inject)

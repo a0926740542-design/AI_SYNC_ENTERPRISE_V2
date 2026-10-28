@@ -51,7 +51,6 @@ class TwoFolderSimulator:
                 result.add(path.relative_to(root).as_posix())
         return result
 
-    @staticmethod
     def _copy_verified(self, source, target, expected_hash, expected_target_hash=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, name = tempfile.mkstemp(prefix=".r53b-", dir=target.parent)

@@ -9,12 +9,20 @@ from datetime import datetime
 from pathlib import Path
 from app.process_lock import locked
 
+class SourceChangedError(OSError):
+    """The source changed while preparing a backup."""
+
+def source_signature(path):
+    stat = path.stat()
+    return (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)
+
 class FileCopier:
-    def __init__(self, backup_folder, source_folder=None, logger=None, version_folder=None):
+    def __init__(self, backup_folder, source_folder=None, logger=None, version_folder=None, settle_seconds=0.5):
         self.backup_folder = Path(backup_folder).resolve()
         self.source_folder = Path(source_folder).resolve() if source_folder else None
         self.version_folder = Path(version_folder).resolve() if version_folder else None
         self.logger = logger
+        self.settle_seconds = settle_seconds
         if self.source_folder and (self.source_folder == self.backup_folder or self.source_folder in self.backup_folder.parents or self.backup_folder in self.source_folder.parents):
             raise ValueError('Source and backup must not overlap')
         if self.version_folder and (self.version_folder == self.backup_folder or self.version_folder in self.backup_folder.parents or self.backup_folder in self.version_folder.parents or (self.source_folder and (self.version_folder == self.source_folder or self.version_folder in self.source_folder.parents or self.source_folder in self.version_folder.parents))):
@@ -38,7 +46,14 @@ class FileCopier:
                     fd, tmp = tempfile.mkstemp(prefix='.ai_sync_', suffix='.tmp', dir=destination.parent)
                     os.close(fd)
                     temporary = Path(tmp)
+                    before = source_signature(source)
+                    if self.settle_seconds > 0:
+                        time.sleep(self.settle_seconds)
+                    if source_signature(source) != before:
+                        raise SourceChangedError(f'Source still changing: {source}')
                     shutil.copy2(source, temporary)
+                    if source_signature(source) != before:
+                        raise SourceChangedError(f'Source changed during copy: {source}')
                     if destination.is_file() and filecmp.cmp(temporary, destination, shallow=False):
                         return True
                     if destination.exists() and not destination.is_file():

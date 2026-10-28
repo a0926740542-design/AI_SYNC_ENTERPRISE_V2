@@ -94,6 +94,15 @@ class TwoFolderSimulator:
         pending = {row[0]: (row[1], row[2]) for row in self.state.pending_transfers()}
         for relative in names:
             laptop_path, home_path = self.laptop / relative, self.home / relative
+            if relative in pending:
+                # Fail closed when a prior replacement left a displaced backup.
+                # This may also block a harmless crash after a successful swap;
+                # manual review is intentional until a durable journal exists.
+                for endpoint in (laptop_path, home_path):
+                    if list(endpoint.parent.glob(BACKUP_PREFIX + "*" + endpoint.name)):
+                        raise RuntimeError(
+                            "Pending replacement requires manual recovery: " + relative
+                        )
             laptop_hash, home_hash = digest(laptop_path), digest(home_path)
             baseline = self.state.baseline(relative)
             outcome = decide(baseline, laptop_hash, home_hash)

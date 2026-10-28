@@ -69,6 +69,7 @@ class TwoFolderSimulator:
             return {"status": "offline", "copied": [], "conflicts": []}
         names = sorted(self._files(self.laptop) | self._files(self.home))
         copied, conflicts = [], []
+        pending = {row[0]: (row[1], row[2]) for row in self.state.pending_transfers()}
         for relative in names:
             laptop_path, home_path = self.laptop / relative, self.home / relative
             laptop_hash, home_hash = digest(laptop_path), digest(home_path)
@@ -89,5 +90,8 @@ class TwoFolderSimulator:
             if final_laptop != final_home:
                 raise RuntimeError(f"Post-copy mismatch: {relative}")
             if final_laptop is not None:
-                self.state.acknowledge(relative, final_laptop)
+                if relative in pending and pending[relative][1] == final_laptop:
+                    self.state.finish_transfer(relative, final_laptop)
+                else:
+                    self.state.acknowledge(relative, final_laptop)
         return {"status": "online", "copied": copied, "conflicts": conflicts}

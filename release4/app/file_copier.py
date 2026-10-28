@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from app.process_lock import locked
+from app.source_open_guard import assert_exclusively_openable
 
 class SourceChangedError(OSError):
     """The source changed while preparing a backup."""
@@ -46,6 +47,7 @@ class FileCopier:
                     fd, tmp = tempfile.mkstemp(prefix='.ai_sync_', suffix='.tmp', dir=destination.parent)
                     os.close(fd)
                     temporary = Path(tmp)
+                    assert_exclusively_openable(source)
                     before = source_signature(source)
                     if self.settle_seconds > 0:
                         time.sleep(self.settle_seconds)
@@ -54,6 +56,7 @@ class FileCopier:
                     shutil.copy2(source, temporary)
                     if source_signature(source) != before:
                         raise SourceChangedError(f'Source changed during copy: {source}')
+                    assert_exclusively_openable(source)
                     if destination.is_file() and filecmp.cmp(temporary, destination, shallow=False):
                         return True
                     if destination.exists() and not destination.is_file():

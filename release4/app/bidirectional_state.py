@@ -16,6 +16,7 @@ class SyncState:
                 sha256 TEXT NOT NULL
             )""")
             db.execute("""CREATE TABLE IF NOT EXISTS pending_transfers (\n                relative_path TEXT PRIMARY KEY, direction TEXT NOT NULL,\n                expected_sha256 TEXT NOT NULL\n            )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS replacement_intents (\n                relative_path TEXT PRIMARY KEY, expected_sha256 TEXT NOT NULL\n            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS conflicts (
                 relative_path TEXT PRIMARY KEY,
                 baseline_sha256 TEXT,
@@ -79,6 +80,19 @@ class SyncState:
             return db.execute("""SELECT relative_path,direction,expected_sha256
                 FROM pending_transfers ORDER BY relative_path""").fetchall()
 
+    def mark_replacement_intent(self, relative_path, expected_sha256):
+        with self._connect() as db:
+            db.execute("""INSERT INTO replacement_intents(relative_path,expected_sha256)
+                VALUES (?,?) ON CONFLICT(relative_path) DO UPDATE SET
+                expected_sha256=excluded.expected_sha256""",
+                (self._path(relative_path), expected_sha256))
+
+    def replacement_intents(self):
+        with self._connect() as db:
+            return dict(db.execute(
+                "SELECT relative_path,expected_sha256 FROM replacement_intents"
+            ).fetchall())
+
     def finish_transfer(self, relative_path, expected_sha256):
         """Atomically acknowledge a verified copy and clear its pending intent."""
         path = self._path(relative_path)
@@ -91,6 +105,7 @@ class SyncState:
                 ON CONFLICT(relative_path) DO UPDATE SET sha256=excluded.sha256""",
                 (path, expected_sha256))
             db.execute("DELETE FROM pending_transfers WHERE relative_path=?", (path,))
+            db.execute("DELETE FROM replacement_intents WHERE relative_path=?", (path,))
 
     def discard_pending(self, relative_path, expected_sha256):
         """Discard an obsolete intent only after both endpoints are verified equal."""
